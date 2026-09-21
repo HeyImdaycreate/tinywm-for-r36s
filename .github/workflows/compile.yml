@@ -3,36 +3,46 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository code
         uses: actions/checkout@v4
 
-      - name: Configure Pure ARM64 Repositories
+      - name: Add arm64 architecture and ports repo
         run: |
-          # 1. Активируем архитектуру arm64 в системе
           sudo dpkg --add-architecture arm64
-          
-          # 2. Полностью стираем старые списки и пишем ОДИН единственный репозиторий строго для ARM64 пакетов графики
-          sudo tee /etc/apt/sources.list <<EOF
-          deb [arch=arm64] http://ubuntu.com noble main universe restricted multiverse
-          deb [arch=arm64] http://ubuntu.com noble-updates main universe restricted multiverse
-          deb [arch=arm64] http://ubuntu.com noble-security main universe restricted multiverse
+          # Оставляем родные amd64-репозитории нетронутыми!
+          # Добавляем только arm64-репозиторий через отдельный .sources файл
+          sudo tee /etc/apt/sources.list.d/ubuntu-ports-arm64.sources <<'EOF'
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-security
+          Components: main universe restricted multiverse
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
           EOF
-          
-          # 3. Обновляем кэш (теперь предупреждений W: configured multiple times не будет)
+
+      - name: Install cross-compiler and ARM64 X11 dev libs
+        run: |
           sudo apt-get update
-          
-          # 4. Устанавливаем кросс-компилятор и статические библиотеки графики X11
-          sudo apt-get install -y gcc-aarch64-linux-gnu libx11-dev:arm64
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            libx11-dev:arm64 \
+            libxau-dev:arm64 \
+            libxcb1-dev:arm64 \
+            libxdmcp-dev:arm64
 
       - name: Compile pure static binary
         run: |
-          # Собираем монолитный файл со всеми зашитыми зависимостями
-          aarch64-linux-gnu-gcc tinywm.c -o tinywm_bin -static -O2 -lX11 -lxcb -lXau -lXdmcp
-          
-      - name: Upload compiled binary to GitHub Releases
+          aarch64-linux-gnu-gcc tinywm.c -o tinywm_bin \
+            -static -O2 -s -lX11
+          file tinywm_bin
+          aarch64-linux-gnu-strip tinywm_bin || true
+          ls -lh tinywm_bin
+
+      - name: Upload compiled binary
         uses: actions/upload-artifact@v4
         with:
           name: tinywm-for-r36s
           path: tinywm_bin
+          if-no-files-found: error
