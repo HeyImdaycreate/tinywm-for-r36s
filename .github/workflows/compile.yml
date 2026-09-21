@@ -8,14 +8,15 @@ jobs:
       - name: Checkout repository code
         uses: actions/checkout@v4
 
-      - name: Install ARM64 Cross-Compiler
+      - name: Enable ARM64 Architecture and Install Packages
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          sudo apt-get install -y gcc-aarch64-linux-gnu libx11-dev:arm64
 
-      - name: Compile static binary
+      - name: Compile static binary with X11
         run: |
-          aarch64-linux-gnu-gcc tinywm.c -o tinywm_bin -static -O2
+          aarch64-linux-gnu-gcc tinywm.c -o tinywm_bin -static -lX11 -lxcb -lXau -lXdmcp
 
       - name: Upload compiled binary to GitHub Releases
         uses: actions/upload-artifact@v4
