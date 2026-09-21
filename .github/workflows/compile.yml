@@ -36,20 +36,23 @@ jobs:
           Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
           EOF
 
-      - name: Install cross toolchain and ARM64 X11 dev libs
+      - name: Install cross toolchain and ARM64 dev libs
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             gcc-aarch64-linux-gnu \
+            libc6-dev:arm64 \
+            linux-libc-dev:arm64 \
             libx11-dev:arm64 \
             libxau-dev:arm64 \
             libxcb1-dev:arm64 \
             libxdmcp-dev:arm64
 
-      - name: Compile static binary
+      - name: Compile TinyWM (dynamic, aarch64)
         run: |
-          aarch64-linux-gnu-gcc tinywm.c -o tinywm_bin -static -O2 -s -lX11
+          aarch64-linux-gnu-gcc tinywm.c -o tinywm_bin -O2 -s -lX11
           file tinywm_bin
+          aarch64-linux-gnu-strip tinywm_bin || true
           ls -lh tinywm_bin
 
       - uses: actions/upload-artifact@v4
