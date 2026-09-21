@@ -8,30 +8,29 @@ jobs:
       - name: Checkout repository code
         uses: actions/checkout@v4
 
-      - name: Install ARM64 Cross-Compiler
+      - name: Inject ARM64 Repositories and Install Toolchain
         run: |
+          # 1. Добавляем архитектуру arm64 в систему
+          sudo dpkg --add-architecture arm64
+          
+          # 2. Переписываем список репозиториев, чтобы apt-get знал, откуда качать пакеты для ARM
+          sudo tee /etc/apt/sources.list <<EOF
+          deb [arch=amd64] http://ubuntu.com noble main universe restricted multiverse
+          deb [arch=amd64] http://ubuntu.com noble-updates main universe restricted multiverse
+          deb [arch=amd64] http://ubuntu.com noble-security main universe restricted multiverse
+          deb [arch=arm64] http://ubuntu.com noble main universe restricted multiverse
+          deb [arch=arm64] http://ubuntu.com noble-updates main universe restricted multiverse
+          deb [arch=arm64] http://ubuntu.com noble-security main universe restricted multiverse
+          EOF
+          
+          # 3. Обновляем кэш и ставим компилятор вместе со всеми библиотеками графики X11
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu wget
+          sudo apt-get install -y gcc-aarch64-linux-gnu libx11-dev:arm64
 
-      - name: Download and Extract ARM64 X11 Libraries Direct
+      - name: Compile pure static binary
         run: |
-          mkdir -p local_x11
-          cd local_x11
-          # Скачиваем чистые официальные пакеты библиотек ARM64 (Ubuntu Ports)
-          wget -q http://ubuntu.com
-          wget -q http://ubuntu.com
-          wget -q http://ubuntu.com
-          wget -q http://ubuntu.com
-          wget -q http://ubuntu.com
-          # Распаковываем их как архивы прямо в нашу рабочую папку в облаке
-          for f in *.deb; do dpkg-deb -x "$f" . ; done
-
-      - name: Compile static binary using precise paths
-        run: |
-          aarch64-linux-gnu-gcc tinywm.c -o tinywm_bin -static -O2 \
-            -I./local_x11/usr/include \
-            -L./local_x11/usr/lib/aarch64-linux-gnu \
-            -lX11 -lxcb -lXau -lXdmcp
+          # Компилируем статический файл, автоматически подтягивая библиотеки из правильных папок
+          aarch64-linux-gnu-gcc tinywm.c -o tinywm_bin -static -O2 -lX11 -lxcb -lXau -lXdmcp
           
       - name: Upload compiled binary to GitHub Releases
         uses: actions/upload-artifact@v4
